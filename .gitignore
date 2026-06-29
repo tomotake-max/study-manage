@@ -1,0 +1,4 @@
+node_modules/
+dist/
+app-dashboard/public/data.json
+*.log

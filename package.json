@@ -1,0 +1,9 @@
+{
+  "name": "studyboard",
+  "private": true,
+  "scripts": {
+    "build:data": "pnpm --filter pipeline build",
+    "watch:data": "pnpm --filter pipeline watch",
+    "dev": "pnpm --filter app-dashboard dev"
+  }
+}
