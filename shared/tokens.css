@@ -1,0 +1,51 @@
+:root {
+  /* 科目カラー（README踏襲・必須） */
+  --chart-7: #5b6ea8;   /* 算数: slate-blue */
+  --chart-2: #BC6E4F;   /* 国語: テラコッタ */
+  --chart-1: #5E8C88;   /* 理科: verdigris */
+  /* 社会は #A9763C を直接指定 */
+
+  /* 面・背景 */
+  --canvas: #f7f3ea;
+  --surface: #fffdf8;
+  --surface-sunken: #efe9dc;
+
+  /* テキスト3階調 */
+  --ink: #2c2a26;
+  --ink-soft: #6b6457;
+  --ink-faint: #9a9182;
+
+  /* 罫線 */
+  --line: #e4dccb;
+  --line-strong: #cdc2ab;
+
+  /* アクセント（アンティークゴールド） */
+  --gold: #b08d4f;
+  --gold-deep: #8a6d35;
+  --gold-veil: #f3ead4;
+
+  /* 状態色 */
+  --success: #5E8C88;
+  --danger: #c0392b;
+
+  /* 角丸 */
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-pill: 999px;
+
+  /* タイポ */
+  --font-display: "Shippori Mincho", "Hiragino Mincho ProN", serif;
+  --font-body: "Zen Kaku Gothic New", "Hiragino Kaku Gothic ProN", system-ui, sans-serif;
+
+  /* モーション */
+  --dur-fast: 160ms;
+  --ease-organic: cubic-bezier(.2,.7,.2,1);
+}
+
+html, body { margin: 0; background: var(--canvas); color: var(--ink); font-family: var(--font-body); }
+h1, h2, h3 { font-family: var(--font-display); color: var(--ink); margin: 0; }
+.tnum { font-variant-numeric: tabular-nums; }
+.eyebrow {
+  font-family: var(--font-body); font-size: 11px; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--ink-faint);
+}
