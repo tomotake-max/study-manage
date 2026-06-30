@@ -6,15 +6,52 @@ import { Pill } from "../ui/Pill";
 import { Card } from "../ui/Card";
 import { Icon } from "../ui/Icon";
 
-// Declare global types for Google API
+// Declare global types for Google API (gapi = Picker library, google.accounts = Google Identity Services for OAuth)
 declare global {
   var gapi: any;
+  interface Window {
+    google: any;
+  }
   interface ImportMeta {
     env: {
       VITE_GOOGLE_CLIENT_ID: string;
       VITE_GOOGLE_API_KEY: string;
     };
   }
+}
+
+// Cache the GIS token client and any access token already granted this session,
+// so we don't show the Google consent popup on every click.
+let gisTokenClient: any = null;
+let cachedAccessToken: string | null = null;
+
+function getAccessToken(clientId: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (cachedAccessToken) {
+      resolve(cachedAccessToken);
+      return;
+    }
+    if (!window.google?.accounts?.oauth2) {
+      reject(new Error("Google Identity Services がまだ読み込まれていません。少し待って再試行してください。"));
+      return;
+    }
+    if (!gisTokenClient) {
+      gisTokenClient = window.google.accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: "https://www.googleapis.com/auth/drive.readonly",
+        callback: () => {}, // overridden per-request below
+      });
+    }
+    gisTokenClient.callback = (resp: any) => {
+      if (resp.error) {
+        reject(new Error(resp.error));
+        return;
+      }
+      cachedAccessToken = resp.access_token;
+      resolve(resp.access_token);
+    };
+    gisTokenClient.requestAccessToken({ prompt: cachedAccessToken ? "" : "consent" });
+  });
 }
 
 const CATEGORIES: MistakeCategory[] = ["テキスト", "復習テスト", "公開テスト"];
@@ -55,12 +92,17 @@ interface UploadSlotProps {
   label: string;
   hint: string;
   onFileSelected: (file: File, preview: string) => void;
+  /** 答案・解答など、先に見えると直しの意味がなくなる写真用。
+   *  選択後は伏せ字（ぼかし）表示にし、クリックでその場限り表示する。 */
+  concealAfterSelect?: boolean;
 }
 
-function UploadSlot({ icon, label, hint, onFileSelected }: UploadSlotProps) {
+function UploadSlot({ icon, label, hint, onFileSelected, concealAfterSelect }: UploadSlotProps) {
   const [preview, setPreview] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [revealed, setRevealed] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isConcealed = concealAfterSelect && preview && !revealed;
 
   const handleLocalFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -69,109 +111,96 @@ function UploadSlot({ icon, label, hint, onFileSelected }: UploadSlotProps) {
       reader.onload = (event) => {
         const previewUrl = event.target?.result as string;
         setPreview(previewUrl);
+        setRevealed(false);
         onFileSelected(file, previewUrl);
       };
       reader.readAsDataURL(file);
     }
   };
 
-  const openGooglePicker = () => {
+  const openGooglePicker = async () => {
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
     const apiKey = import.meta.env.VITE_GOOGLE_API_KEY;
 
     if (!clientId || !apiKey) {
-      alert("Google API credentials are not configured");
+      alert("Google API の設定 (.env.local) が見つかりません");
       return;
     }
 
-    // Load Google API and create picker
-    const loadGoogleAPIs = () => {
-      gapi.load("picker", { callback: createPicker });
-      gapi.client.init({
-        apiKey: apiKey,
-        clientId: clientId,
-        scope: ["https://www.googleapis.com/auth/drive.readonly"],
-        discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"],
-      });
-    };
+    setIsLoading(true);
+    try {
+      const accessToken = await getAccessToken(clientId);
+      await loadPickerLibrary();
+      showPicker(accessToken, apiKey);
+    } catch (error) {
+      console.error("Google 認証に失敗しました:", error);
+      alert("Google ドライブへの接続に失敗しました。もう一度お試しください。");
+      setIsLoading(false);
+    }
+  };
 
-    const createPicker = () => {
-      const googleAuth = gapi.auth2.getAuthInstance();
-      if (!googleAuth) {
-        gapi.auth2.init({
-          client_id: clientId,
-          scope: "https://www.googleapis.com/auth/drive.readonly",
-        });
+  const loadPickerLibrary = (): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      if (!gapi) {
+        reject(new Error("Google API スクリプトが読み込まれていません"));
+        return;
+      }
+      if ((window as any).google?.picker) {
+        resolve();
+        return;
+      }
+      gapi.load("picker", { callback: () => resolve(), onerror: () => reject(new Error("Picker の読み込みに失敗しました")) });
+    });
+  };
+
+  const showPicker = (accessToken: string, apiKey: string) => {
+    const picker = new (window as any).google.picker.PickerBuilder()
+      .addView((window as any).google.picker.ViewId.DOCS_IMAGES)
+      .setOAuthToken(accessToken)
+      .setDeveloperKey(apiKey)
+      .setCallback((data: any) => pickerCallback(data, accessToken))
+      .build();
+    picker.setVisible(true);
+    // Picker UI is now shown; clear the button's loading state.
+    setIsLoading(false);
+  };
+
+  const pickerCallback = (data: any, accessToken: string) => {
+    if (data.action === (window as any).google.picker.Action.PICKED) {
+      const file = data.docs[0];
+      setIsLoading(true);
+      downloadDriveFile(file, accessToken);
+    }
+  };
+
+  const downloadDriveFile = async (file: any, accessToken: string) => {
+    try {
+      const response = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to download file: ${response.statusText}`);
       }
 
-      const authInstance = gapi.auth2.getAuthInstance();
-      if (!authInstance.isSignedIn.get()) {
-        authInstance.signIn().then(() => {
-          showPicker(authInstance);
-        });
-      } else {
-        showPicker(authInstance);
-      }
-    };
+      const blob = await response.blob();
+      const driveFile = new File([blob], file.name, { type: blob.type });
 
-    const showPicker = (authInstance: any) => {
-      const accessToken = authInstance.currentUser.get().getAuthResponse().id_token;
-      const picker = new (window as any).google.picker.PickerBuilder()
-        .addView((window as any).google.picker.ViewId.DOCS)
-        .addView((window as any).google.picker.ViewId.DOCS_IMAGES)
-        .setOAuthToken(accessToken)
-        .setDeveloperKey(apiKey)
-        .setCallback(pickerCallback)
-        .build();
-      picker.setVisible(true);
-    };
-
-    const pickerCallback = (data: any) => {
-      if (data.action === (window as any).google.picker.Action.PICKED) {
-        const file = data.docs[0];
-        setIsLoading(true);
-        downloadDriveFile(file);
-      }
-    };
-
-    const downloadDriveFile = async (file: any) => {
-      try {
-        const authInstance = gapi.auth2.getAuthInstance();
-        const accessToken = authInstance.currentUser.get().getAuthResponse().access_token;
-
-        const response = await fetch(
-          `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`,
-          {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-            },
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error(`Failed to download file: ${response.statusText}`);
-        }
-
-        const blob = await response.blob();
-        const fileName = file.getName();
-        const driveFile = new File([blob], fileName, { type: blob.type });
-
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          const previewUrl = event.target?.result as string;
-          setPreview(previewUrl);
-          onFileSelected(driveFile, previewUrl);
-          setIsLoading(false);
-        };
-        reader.readAsDataURL(blob);
-      } catch (error) {
-        console.error("Error downloading file from Drive:", error);
-        alert("ファイルのダウンロードに失敗しました");
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const previewUrl = event.target?.result as string;
+        setPreview(previewUrl);
+        setRevealed(false);
+        onFileSelected(driveFile, previewUrl);
         setIsLoading(false);
-      }
-    };
-
-    loadGoogleAPIs();
+      };
+      reader.readAsDataURL(blob);
+    } catch (error) {
+      console.error("Error downloading file from Drive:", error);
+      alert("ファイルのダウンロードに失敗しました");
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -179,6 +208,7 @@ function UploadSlot({ icon, label, hint, onFileSelected }: UploadSlotProps) {
       {preview && (
         <div
           style={{
+            position: "relative",
             borderRadius: "var(--radius-md)",
             overflow: "hidden",
             border: "1px solid var(--line)",
@@ -193,8 +223,60 @@ function UploadSlot({ icon, label, hint, onFileSelected }: UploadSlotProps) {
               maxHeight: 200,
               objectFit: "cover",
               display: "block",
+              filter: isConcealed ? "blur(18px)" : "none",
+              transform: isConcealed ? "scale(1.1)" : "none",
+              transition: "filter var(--dur) var(--ease-organic)",
             }}
           />
+          {isConcealed && (
+            <button
+              type="button"
+              onClick={() => setRevealed(true)}
+              style={{
+                position: "absolute",
+                inset: 0,
+                width: "100%",
+                border: "none",
+                background: "rgba(44,42,38,0.35)",
+                color: "#fff",
+                cursor: "pointer",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                fontFamily: "var(--font-body)",
+              }}
+            >
+              <Icon name="eye" size={22} />
+              <span style={{ fontSize: 13 }}>クリックして表示</span>
+            </button>
+          )}
+          {!isConcealed && concealAfterSelect && (
+            <button
+              type="button"
+              onClick={() => setRevealed(false)}
+              title="もう一度隠す"
+              style={{
+                position: "absolute",
+                top: 6,
+                right: 6,
+                border: "none",
+                borderRadius: "var(--radius-pill)",
+                background: "rgba(44,42,38,0.55)",
+                color: "#fff",
+                cursor: "pointer",
+                padding: "4px 8px",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                fontSize: 11,
+                fontFamily: "var(--font-body)",
+              }}
+            >
+              <Icon name="eye-off" size={12} /> 隠す
+            </button>
+          )}
         </div>
       )}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
@@ -411,7 +493,13 @@ export function AddMistake(props: { data: DashboardData; onBack: () => void }) {
             </div>
             <div>
               <div style={labelStyle}>答案・解答用紙</div>
-              <UploadSlot icon="file-text" label="答案・解答用紙" hint="間違えた答案を追加" onFileSelected={handlePhoto2Selected} />
+              <UploadSlot
+                icon="file-text"
+                label="答案・解答用紙"
+                hint="間違えた答案を追加"
+                onFileSelected={handlePhoto2Selected}
+                concealAfterSelect
+              />
             </div>
           </div>
         </div>
