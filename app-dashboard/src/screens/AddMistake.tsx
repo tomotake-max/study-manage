@@ -1,10 +1,21 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import type { DashboardData, MistakeCategory, SubjectName } from "shared";
 import { SectionTitle } from "../chrome/SectionTitle";
 import { Button } from "../ui/Button";
 import { Pill } from "../ui/Pill";
 import { Card } from "../ui/Card";
 import { Icon } from "../ui/Icon";
+
+// Declare global types for Google API
+declare global {
+  var gapi: any;
+  interface ImportMeta {
+    env: {
+      VITE_GOOGLE_CLIENT_ID: string;
+      VITE_GOOGLE_API_KEY: string;
+    };
+  }
+}
 
 const CATEGORIES: MistakeCategory[] = ["テキスト", "復習テスト", "公開テスト"];
 const SUBJECTS: SubjectName[] = ["算数", "国語", "理科", "社会"];
@@ -39,33 +50,233 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function UploadSlot({ icon, label, hint }: { icon: string; label: string; hint: string }) {
-  const [filled, setFilled] = useState(false);
+interface UploadSlotProps {
+  icon: string;
+  label: string;
+  hint: string;
+  onFileSelected: (file: File, preview: string) => void;
+}
+
+function UploadSlot({ icon, label, hint, onFileSelected }: UploadSlotProps) {
+  const [preview, setPreview] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleLocalFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const previewUrl = event.target?.result as string;
+        setPreview(previewUrl);
+        onFileSelected(file, previewUrl);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const openGooglePicker = () => {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    const apiKey = import.meta.env.VITE_GOOGLE_API_KEY;
+
+    if (!clientId || !apiKey) {
+      alert("Google API credentials are not configured");
+      return;
+    }
+
+    // Load Google API and create picker
+    const loadGoogleAPIs = () => {
+      gapi.load("picker", { callback: createPicker });
+      gapi.client.init({
+        apiKey: apiKey,
+        clientId: clientId,
+        scope: ["https://www.googleapis.com/auth/drive.readonly"],
+        discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"],
+      });
+    };
+
+    const createPicker = () => {
+      const googleAuth = gapi.auth2.getAuthInstance();
+      if (!googleAuth) {
+        gapi.auth2.init({
+          client_id: clientId,
+          scope: "https://www.googleapis.com/auth/drive.readonly",
+        });
+      }
+
+      const authInstance = gapi.auth2.getAuthInstance();
+      if (!authInstance.isSignedIn.get()) {
+        authInstance.signIn().then(() => {
+          showPicker(authInstance);
+        });
+      } else {
+        showPicker(authInstance);
+      }
+    };
+
+    const showPicker = (authInstance: any) => {
+      const accessToken = authInstance.currentUser.get().getAuthResponse().id_token;
+      const picker = new (window as any).google.picker.PickerBuilder()
+        .addView((window as any).google.picker.ViewId.DOCS)
+        .addView((window as any).google.picker.ViewId.DOCS_IMAGES)
+        .setOAuthToken(accessToken)
+        .setDeveloperKey(apiKey)
+        .setCallback(pickerCallback)
+        .build();
+      picker.setVisible(true);
+    };
+
+    const pickerCallback = (data: any) => {
+      if (data.action === (window as any).google.picker.Action.PICKED) {
+        const file = data.docs[0];
+        setIsLoading(true);
+        downloadDriveFile(file);
+      }
+    };
+
+    const downloadDriveFile = async (file: any) => {
+      try {
+        const authInstance = gapi.auth2.getAuthInstance();
+        const accessToken = authInstance.currentUser.get().getAuthResponse().access_token;
+
+        const response = await fetch(
+          `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`,
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(`Failed to download file: ${response.statusText}`);
+        }
+
+        const blob = await response.blob();
+        const fileName = file.getName();
+        const driveFile = new File([blob], fileName, { type: blob.type });
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const previewUrl = event.target?.result as string;
+          setPreview(previewUrl);
+          onFileSelected(driveFile, previewUrl);
+          setIsLoading(false);
+        };
+        reader.readAsDataURL(blob);
+      } catch (error) {
+        console.error("Error downloading file from Drive:", error);
+        alert("ファイルのダウンロードに失敗しました");
+        setIsLoading(false);
+      }
+    };
+
+    loadGoogleAPIs();
+  };
+
   return (
-    <button
-      type="button"
-      onClick={() => setFilled((v) => !v)}
-      style={{
-        border: "1px dashed " + (filled ? "var(--gold)" : "var(--line-strong)"),
-        background: filled ? "var(--gold-veil)" : "var(--surface-sunken)",
-        borderRadius: "var(--radius-md)",
-        height: 150,
-        width: "100%",
-        cursor: "pointer",
-        display: "grid",
-        placeItems: "center",
-        color: filled ? "var(--gold-deep)" : "var(--ink-faint)",
-        transition: "all var(--dur) var(--ease-organic)",
-      }}
-    >
-      <div style={{ textAlign: "center", fontFamily: "var(--font-body)" }}>
-        <Icon name={filled ? "check-circle" : icon} size={26} />
-        <div style={{ marginTop: 8, fontSize: 14, color: filled ? "var(--gold-deep)" : "var(--ink-soft)" }}>
-          {filled ? "アップロード済み" : label}
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {preview && (
+        <div
+          style={{
+            borderRadius: "var(--radius-md)",
+            overflow: "hidden",
+            border: "1px solid var(--line)",
+          }}
+        >
+          <img
+            src={preview}
+            alt="Preview"
+            style={{
+              width: "100%",
+              height: "auto",
+              maxHeight: 200,
+              objectFit: "cover",
+              display: "block",
+            }}
+          />
         </div>
-        {!filled && <div style={{ fontSize: 12, marginTop: 2 }}>{hint}</div>}
+      )}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isLoading}
+          style={{
+            border: "1px dashed var(--line-strong)",
+            background: "var(--surface-sunken)",
+            borderRadius: "var(--radius-md)",
+            height: preview ? 80 : 150,
+            width: "100%",
+            cursor: isLoading ? "not-allowed" : "pointer",
+            display: "grid",
+            placeItems: "center",
+            color: "var(--ink-faint)",
+            transition: "all var(--dur) var(--ease-organic)",
+            opacity: isLoading ? 0.5 : 1,
+          }}
+        >
+          <div style={{ textAlign: "center", fontFamily: "var(--font-body)" }}>
+            <Icon name={icon} size={preview ? 20 : 26} />
+            <div style={{ marginTop: 4, fontSize: preview ? 12 : 14, color: "var(--ink-soft)" }}>
+              {isLoading ? "読み込み中..." : "ファイルを選択"}
+            </div>
+          </div>
+        </button>
+        <button
+          type="button"
+          onClick={openGooglePicker}
+          disabled={isLoading}
+          style={{
+            border: "1px dashed var(--line-strong)",
+            background: "var(--surface-sunken)",
+            borderRadius: "var(--radius-md)",
+            height: preview ? 80 : 150,
+            width: "100%",
+            cursor: isLoading ? "not-allowed" : "pointer",
+            display: "grid",
+            placeItems: "center",
+            color: "var(--ink-faint)",
+            transition: "all var(--dur) var(--ease-organic)",
+            opacity: isLoading ? 0.5 : 1,
+          }}
+        >
+          <div style={{ textAlign: "center", fontFamily: "var(--font-body)" }}>
+            <Icon name="cloud" size={preview ? 20 : 26} />
+            <div style={{ marginTop: 4, fontSize: preview ? 12 : 14, color: "var(--ink-soft)" }}>
+              {isLoading ? "読み込み中..." : "Google ドライブ"}
+            </div>
+          </div>
+        </button>
       </div>
-    </button>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleLocalFileSelect}
+        style={{ display: "none" }}
+      />
+      {preview && (
+        <button
+          type="button"
+          onClick={() => {
+            setPreview(null);
+            if (fileInputRef.current) fileInputRef.current.value = "";
+          }}
+          style={{
+            border: "none",
+            background: "none",
+            color: "var(--ink-soft)",
+            cursor: "pointer",
+            fontSize: 12,
+            textDecoration: "underline",
+            padding: 0,
+          }}
+        >
+          削除
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -80,13 +291,33 @@ export function AddMistake(props: { data: DashboardData; onBack: () => void }) {
   const [question, setQuestion] = useState("");
   const [note, setNote] = useState("");
   const [saved, setSaved] = useState(false);
+  const [photo1, setPhoto1] = useState<File | null>(null);
+  const [photo1Preview, setPhoto1Preview] = useState<string | null>(null);
+  const [photo2, setPhoto2] = useState<File | null>(null);
+  const [photo2Preview, setPhoto2Preview] = useState<string | null>(null);
 
   const isText = cat === "テキスト";
 
   function handleSave() {
+    // In Phase 1, files are stored in state but not actually persisted
+    // In Phase 2, these would be uploaded to a server or storage service
+    console.log("Saving mistake with photos:", {
+      photo1: photo1?.name,
+      photo2: photo2?.name,
+    });
     setSaved(true);
     setTimeout(() => props.onBack(), 700);
   }
+
+  const handlePhoto1Selected = (file: File, preview: string) => {
+    setPhoto1(file);
+    setPhoto1Preview(preview);
+  };
+
+  const handlePhoto2Selected = (file: File, preview: string) => {
+    setPhoto2(file);
+    setPhoto2Preview(preview);
+  };
 
   return (
     <div style={{ maxWidth: 880, margin: "0 auto" }}>
@@ -174,8 +405,14 @@ export function AddMistake(props: { data: DashboardData; onBack: () => void }) {
         <div style={{ marginTop: 26 }}>
           <div className="eyebrow" style={{ marginBottom: 10 }}>アップロード · テキスト と テスト</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
-            <UploadSlot icon="book-open" label={isText ? "テキストの該当箇所" : "問題用紙"} hint="クリックして写真を追加" />
-            <UploadSlot icon="file-text" label="答案・解答用紙" hint="間違えた答案を追加" />
+            <div>
+              <div style={labelStyle}>{isText ? "テキストの該当箇所" : "問題用紙"}</div>
+              <UploadSlot icon="book-open" label={isText ? "テキストの該当箇所" : "問題用紙"} hint="クリックして写真を追加" onFileSelected={handlePhoto1Selected} />
+            </div>
+            <div>
+              <div style={labelStyle}>答案・解答用紙</div>
+              <UploadSlot icon="file-text" label="答案・解答用紙" hint="間違えた答案を追加" onFileSelected={handlePhoto2Selected} />
+            </div>
           </div>
         </div>
 
