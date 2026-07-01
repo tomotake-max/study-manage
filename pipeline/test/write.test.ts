@@ -32,6 +32,30 @@ describe("setMistakeGroup", () => {
     expect(parsed.data.group).toBe(2);
     expect(parsed.content.trim()).toBe("メモ本文");
   });
+
+  it("idにパストラバーサルを含む場合は例外を投げてvault外に触れない", async () => {
+    // vaultDirの外側に的となるファイルを用意し、書き換えられていないことを確認する
+    const outsideDir = await mkdtemp(path.join(tmpdir(), "studyboard-outside-"));
+    try {
+      const outsideFile = path.join(outsideDir, "evil.md");
+      await writeFile(outsideFile, matter.stringify("元のメモ", { group: 1 }), "utf8");
+
+      const dir = path.join(vaultDir, "間違い");
+      await mkdir(dir, { recursive: true });
+
+      const relativeId = path.relative(dir, outsideFile).replace(/\.md$/, "");
+      await expect(setMistakeGroup(vaultDir, relativeId, 2)).rejects.toThrow();
+      await expect(setMistakeGroup(vaultDir, "../evil", 2)).rejects.toThrow();
+      await expect(setMistakeGroup(vaultDir, "foo/../../bar", 2)).rejects.toThrow();
+
+      const raw = await readFile(outsideFile, "utf8");
+      const parsed = matter(raw);
+      expect(parsed.data.group).toBe(1);
+      expect(parsed.content.trim()).toBe("元のメモ");
+    } finally {
+      await rm(outsideDir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("createMaterialStub", () => {
@@ -59,6 +83,18 @@ describe("createMaterialStub", () => {
     const parsed = matter(raw);
     expect(parsed.data.today_done).toBe(99);
     expect(parsed.content.trim()).toBe("カスタムメモ");
+  });
+
+  it("タイトルに特殊文字が含まれる場合はファイル名から除去する", async () => {
+    const { id } = await createMaterialStub(vaultDir, "算数", "テスト/教材:特別編?");
+    expect(id).toBe("テスト教材特別編");
+    const raw = await readFile(path.join(vaultDir, "教材", `${id}.md`), "utf8");
+    const parsed = matter(raw);
+    expect(parsed.data.title).toBe("テスト/教材:特別編?");
+  });
+
+  it("タイトルがサニタイズ後に空になる場合は例外を投げる", async () => {
+    await expect(createMaterialStub(vaultDir, "算数", "///")).rejects.toThrow();
   });
 });
 
@@ -101,5 +137,38 @@ describe("createMistake", () => {
     const first = await createMistake(vaultDir, input);
     const second = await createMistake(vaultDir, { ...input, question: "2問目" });
     expect(second.id).not.toBe(first.id);
+  });
+
+  it("テキストカテゴリでtextTitle/pageが未指定でも例外を投げず空文字を保存する", async () => {
+    const { id } = await createMistake(vaultDir, {
+      subject: "算数", unit: "速さ", theme: "旅人算", category: "テキスト",
+      reason: "計算ミス", question: "旅人算の応用", note: "図を描かず計算した",
+      count: 1, date: "7/2",
+    });
+    const raw = await readFile(path.join(vaultDir, "間違い", `${id}.md`), "utf8");
+    const parsed = matter(raw);
+    expect(parsed.data.text_title).toBe("");
+    expect(parsed.data.page).toBe("");
+  });
+
+  it("テスト系カテゴリでsourceが未指定でも例外を投げず空文字を保存する", async () => {
+    const { id } = await createMistake(vaultDir, {
+      subject: "国語", unit: "", theme: "第3回", category: "復習テスト",
+      reason: "おぼえていない", question: "漢字の書き取り", note: "",
+      count: 1, date: "7/2",
+    });
+    const raw = await readFile(path.join(vaultDir, "間違い", `${id}.md`), "utf8");
+    const parsed = matter(raw);
+    expect(parsed.data.source).toBe("");
+  });
+
+  it("単元・テーマに特殊文字が含まれる場合はファイル名から除去する", async () => {
+    const { id } = await createMistake(vaultDir, {
+      subject: "算数", unit: "速さ/距離", theme: "旅人算?", category: "テキスト",
+      textTitle: "プラスワン問題集", page: "45",
+      reason: "計算ミス", question: "特殊文字テスト", note: "",
+      count: 1, date: "7/2",
+    });
+    expect(id).not.toMatch(/[\\/:*?"<>|]/);
   });
 });

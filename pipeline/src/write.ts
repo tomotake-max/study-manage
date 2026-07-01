@@ -17,7 +17,14 @@ function sanitizeForFilename(s: string): string {
 }
 
 export async function setMistakeGroup(vaultDir: string, id: string, group: 1 | 2): Promise<void> {
-  const file = path.join(vaultDir, "間違い", `${id}.md`);
+  if (id.includes("/") || id.includes("\\")) {
+    throw new Error("invalid id");
+  }
+  const dir = path.join(vaultDir, "間違い");
+  const file = path.join(dir, `${id}.md`);
+  if (path.dirname(file) !== dir) {
+    throw new Error("invalid id");
+  }
   const raw = await readFile(file, "utf8");
   const parsed = matter(raw);
   parsed.data.group = group;
@@ -32,6 +39,9 @@ export async function createMaterialStub(
   const dir = path.join(vaultDir, "教材");
   await mkdir(dir, { recursive: true });
   const id = sanitizeForFilename(title);
+  if (id === "") {
+    throw new Error("title required");
+  }
   const file = path.join(dir, `${id}.md`);
   if (await fileExists(file)) return { id };
 
@@ -72,6 +82,9 @@ export async function createMistake(
 
   const isoDate = new Date().toISOString().slice(0, 10);
   const base = sanitizeForFilename(`${isoDate}-${fields.unit || fields.theme}-${fields.theme}`);
+  if (base === "") {
+    throw new Error("unit/theme required");
+  }
   let id = base;
   let n = 2;
   while (await fileExists(path.join(dir, `${id}.md`))) {
@@ -91,10 +104,10 @@ export async function createMistake(
     group: 1,
   };
   if (fields.category === "テキスト") {
-    frontmatter.text_title = fields.textTitle;
-    frontmatter.page = fields.page;
+    frontmatter.text_title = fields.textTitle ?? "";
+    frontmatter.page = fields.page ?? "";
   } else {
-    frontmatter.source = fields.source;
+    frontmatter.source = fields.source ?? "";
   }
 
   await writeFile(path.join(dir, `${id}.md`), matter.stringify(fields.note ?? "", frontmatter), "utf8");
