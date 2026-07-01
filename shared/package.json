@@ -3,5 +3,7 @@
   "version": "0.0.0",
   "type": "module",
   "main": "src/schema.ts",
-  "exports": { ".": "./src/schema.ts", "./tokens.css": "./tokens.css" }
+  "exports": { ".": "./src/schema.ts", "./tokens.css": "./tokens.css" },
+  "scripts": { "test": "vitest run" },
+  "devDependencies": { "vitest": "^2.1.0", "typescript": "^5.6.0" }
 }

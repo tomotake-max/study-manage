@@ -41,13 +41,15 @@ export interface MistakeNote {
   unit: string;
   theme: string;
   category: MistakeCategory;
-  source: string;
+  source: string;                   // 表示用。テキスト時はpipelineがtextTitle+pageから自動合成
+  textTitle?: string;                // category==="テキスト"のときのみ
+  page?: string;                     // category==="テキスト"のときのみ。半角正規化済み
   reason: string;
   question: string;
   note: string;
   count: number;
   date: string;
-  done: boolean;
+  group: 1 | 2;                      // 1=一群（要復習・ストック中）, 2=二群（直しずみ・ストック外）
 }
 
 // ── 日々の報告ノート ─────────────────────
@@ -107,3 +109,5 @@ export const SUBJECT_COLORS: Record<SubjectName, string> = {
 export const SUBJECT_IDS: Record<SubjectName, SubjectId> = {
   "算数": "math", "国語": "jp", "理科": "sci", "社会": "soc",
 };
+
+export * from "./normalizeDigits.js";
