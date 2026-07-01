@@ -29,8 +29,17 @@ export async function build(): Promise<DashboardData> {
     for (const [subj, min] of Object.entries(r.studyMinutes)) minBySubject[subj] = (minBySubject[subj] ?? 0) + (min ?? 0);
   const monthBySubject = names.map((name) => ({ name, min: minBySubject[name] ?? 0, q: 0 }));
 
+  // カレンダーの年月日は常に実行時点の「今日」から動的に算出する（ハードコード禁止）。
+  // 過去日のデータ入力は vault/報告 のノート日付で行うため、ここが動いても影響しない。
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1; // 1-indexed（既存コードの慣習に合わせる）
+  const today = now.getDate();
+  const firstWeekday = new Date(year, now.getMonth(), 1).getDay(); // 0=日曜〜6=土曜
+  const label = `${year}年 ${month}月`;
+
   const calendar = buildCalendar({
-    year: 2026, month: 6, label: "2026年 6月", firstWeekday: 1, today: 29, goal: 120,
+    year, month, label, firstWeekday, today, goal: 120,
     days: {}, monthBySubject,
   });
 
