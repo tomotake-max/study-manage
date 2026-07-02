@@ -32,6 +32,8 @@ export function App() {
 
   if (!data) return <div style={{ padding: 40 }}>読み込み中…</div>;
 
+  const reload = () => { loadData().then(setData); };
+
   const go = (p: string, opts?: { subject?: string }) => {
     if (opts && opts.subject) setMatSubject(opts.subject);
     setPage(p as Page);
@@ -44,8 +46,8 @@ export function App() {
 
   let screen;
   if (page === "home") screen = <Dashboard data={data} />;
-  else if (page === "mistakes") screen = <Mistakes data={data} onAdd={() => go("add")} />;
-  else if (page === "add") screen = <AddMistake data={data} onBack={() => go("mistakes")} />;
+  else if (page === "mistakes") screen = <Mistakes data={data} onAdd={() => go("add")} onDataChange={setData} reload={reload} />;
+  else if (page === "add") screen = <AddMistake data={data} onBack={() => go("mistakes")} reload={reload} />;
   else if (page === "materials") screen = <Materials data={data} subject={matSubject} />;
   else screen = <Calendar data={data} />;
 
