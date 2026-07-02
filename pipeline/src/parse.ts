@@ -44,13 +44,23 @@ export async function parseVault(vaultDir: string): Promise<ParsedVault> {
         score: fm.score as number | undefined, deviation: fm.deviation as number | undefined,
         subjectDev: fm.subject_dev as TestNote["subjectDev"], done: Boolean(fm.reviewed),
       }); break;
-      case "mistake": out.mistakes.push({
-        id, subject: fm.subject as SubjectName, unit: fm.unit as string, theme: fm.theme as string,
-        category: fm.category as MistakeNote["category"], source: fm.source as string,
-        reason: fm.reason as string, question: fm.question as string,
-        note: content, count: (fm.count as number) ?? 1,
-        date: String(fm.date), done: Boolean(fm.solved),
-      }); break;
+      case "mistake": {
+        const isTextCategory = fm.category === "テキスト";
+        const textTitle = isTextCategory ? (fm.text_title as string | undefined) : undefined;
+        const page = isTextCategory ? (fm.page as string | undefined) : undefined;
+        const source = textTitle
+          ? `${textTitle}${page ? ` p.${page}` : ""}`
+          : (fm.source as string);
+        out.mistakes.push({
+          id, subject: fm.subject as SubjectName, unit: fm.unit as string, theme: fm.theme as string,
+          category: fm.category as MistakeNote["category"], source,
+          textTitle, page,
+          reason: fm.reason as string, question: fm.question as string,
+          note: content, count: (fm.count as number) ?? 1,
+          date: String(fm.date), group: (fm.group as 1 | 2) ?? 1,
+        });
+        break;
+      }
       case "report": out.reports.push({
         date: String(fm.date), plan: (fm.plan as ReportNote["plan"]) ?? [],
         studyMinutes: (fm.study_minutes as ReportNote["studyMinutes"]) ?? {},

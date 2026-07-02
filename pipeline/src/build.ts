@@ -46,7 +46,7 @@ export async function build(): Promise<DashboardData> {
   const data: DashboardData = {
     user: { name: "くるみ", grade: "小学5年生", course: "中学受験コース" },
     nextTest: { name: "7月度 公開テスト", daysLeft: 9 },
-    today: { progressPct: 72, minutes: 84, goalMinutes: 120, reviewed: v.mistakes.filter((m) => m.done).length, queued: v.mistakes.filter((m) => !m.done).length },
+    today: { progressPct: 72, minutes: 84, goalMinutes: 120, reviewed: v.mistakes.filter((m) => m.group === 2).length, queued: v.mistakes.filter((m) => m.group === 1).length },
     streak: { current: 9, best: 18 },
     calendar, history: [50,70,30,0,90,110,60,80,20,75,100,55,120,84],
     subjects, categories: ["テキスト", "復習テスト", "公開テスト"],

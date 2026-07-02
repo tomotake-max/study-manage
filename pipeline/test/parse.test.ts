@@ -13,4 +13,11 @@ describe("parseVault", () => {
     expect(r.mistakes[0].subject).toBe("算数");
     expect(r.reports[0].plan.length).toBeGreaterThan(0);
   });
+
+  it("既存の間違いノート(2026-06-24-速さ-追い越し)はgroup:1として読める", async () => {
+    const r = await parseVault(VAULT);
+    const m = r.mistakes.find((x) => x.id === "2026-06-24-速さ-追い越し");
+    expect(m?.group).toBe(1);
+    expect(m?.source).toBe("速さテキスト p.32");
+  });
 });
