@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { DashboardData, MistakeNote, SubjectName } from "shared";
 import { SUBJECT_COLORS } from "shared";
+import { setMistakeGroupApi } from "../api";
 import { SectionTitle } from "../chrome/SectionTitle";
 import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
@@ -10,13 +11,37 @@ import { Icon } from "../ui/Icon";
 
 const SUBJECTS: SubjectName[] = ["算数", "国語", "理科", "社会"];
 
-export function Mistakes(props: { data: DashboardData; onAdd: () => void }) {
+export function Mistakes(props: {
+  data: DashboardData;
+  onAdd: () => void;
+  onDataChange: (updater: (d: DashboardData) => DashboardData) => void;
+  reload: () => void;
+}) {
   const { mistakes } = props.data;
   const [subject, setSubject] = useState<"all" | SubjectName>("all");
-  const [selectedId, setSelectedId] = useState<string | null>(mistakes[0]?.id ?? null);
+  const [groupTab, setGroupTab] = useState<1 | 2>(1);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [pendingId, setPendingId] = useState<string | null>(null);
 
-  const filtered = mistakes.filter((m) => subject === "all" || m.subject === subject);
+  const filtered = mistakes.filter(
+    (m) => m.group === groupTab && (subject === "all" || m.subject === subject),
+  );
   const selected = mistakes.find((m) => m.id === selectedId) ?? null;
+
+  async function moveGroup(id: string, group: 1 | 2) {
+    setPendingId(id);
+    try {
+      await setMistakeGroupApi(id, group);
+      props.onDataChange((d) => ({
+        ...d,
+        mistakes: d.mistakes.map((m) => (m.id === id ? { ...m, group } : m)),
+      }));
+      if (selectedId === id) setSelectedId(null);
+      setTimeout(() => props.reload(), 800);
+    } finally {
+      setPendingId(null);
+    }
+  }
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: selected ? "1fr 360px" : "1fr", gap: 24, alignItems: "start" }}>
@@ -30,6 +55,15 @@ export function Mistakes(props: { data: DashboardData; onAdd: () => void }) {
             </Button>
           }
         />
+
+        <div style={{ display: "flex", gap: 7, marginBottom: 14 }}>
+          <Pill active={groupTab === 1} onClick={() => { setGroupTab(1); setSelectedId(null); }}>
+            一群（ストック）
+          </Pill>
+          <Pill active={groupTab === 2} onClick={() => { setGroupTab(2); setSelectedId(null); }}>
+            二群
+          </Pill>
+        </div>
 
         <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginBottom: 16 }}>
           <Pill active={subject === "all"} onClick={() => setSubject("all")}>
@@ -48,7 +82,9 @@ export function Mistakes(props: { data: DashboardData; onAdd: () => void }) {
               key={m.id}
               item={m}
               active={m.id === selectedId}
+              pending={m.id === pendingId}
               onClick={() => setSelectedId(m.id)}
+              onMoveGroup={(g) => moveGroup(m.id, g)}
             />
           ))}
           {filtered.length === 0 && (
@@ -59,60 +95,106 @@ export function Mistakes(props: { data: DashboardData; onAdd: () => void }) {
         </Card>
       </div>
 
-      {selected && <MistakeDetail item={selected} onClose={() => setSelectedId(null)} />}
+      {selected && (
+        <MistakeDetail
+          item={selected}
+          pending={selected.id === pendingId}
+          onClose={() => setSelectedId(null)}
+          onMoveGroup={(g) => moveGroup(selected.id, g)}
+        />
+      )}
     </div>
   );
 }
 
-function MistakeRow({ item, active, onClick }: { item: MistakeNote; active: boolean; onClick: () => void }) {
+function MistakeRow({
+  item,
+  active,
+  pending,
+  onClick,
+  onMoveGroup,
+}: {
+  item: MistakeNote;
+  active: boolean;
+  pending: boolean;
+  onClick: () => void;
+  onMoveGroup: (group: 1 | 2) => void;
+}) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
+    <div
       style={{
         display: "flex",
         alignItems: "center",
         gap: 12,
         width: "100%",
-        textAlign: "left",
-        border: "none",
         borderRadius: "var(--radius-sm)",
         background: active ? "var(--gold-veil)" : "transparent",
         padding: "12px 12px",
-        cursor: "pointer",
-        fontFamily: "var(--font-body)",
         transition: "background var(--dur-fast) var(--ease-organic)",
       }}
     >
-      <span
+      <button
+        type="button"
+        onClick={onClick}
         style={{
-          width: 9,
-          height: 9,
-          borderRadius: "50%",
-          background: SUBJECT_COLORS[item.subject],
-          flex: "0 0 auto",
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          flex: 1,
+          minWidth: 0,
+          textAlign: "left",
+          border: "none",
+          background: "none",
+          cursor: "pointer",
+          padding: 0,
+          fontFamily: "var(--font-body)",
         }}
-      />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ color: "var(--ink)", fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {item.question}
+      >
+        <span
+          style={{
+            width: 9,
+            height: 9,
+            borderRadius: "50%",
+            background: SUBJECT_COLORS[item.subject],
+            flex: "0 0 auto",
+          }}
+        />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ color: "var(--ink)", fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {item.question}
+          </div>
+          <div style={{ color: "var(--ink-faint)", fontSize: 12, marginTop: 2 }}>{item.source}</div>
         </div>
-        <div style={{ color: "var(--ink-faint)", fontSize: 12, marginTop: 2 }}>{item.source}</div>
-      </div>
-      <span className="tnum" style={{ color: "var(--ink-soft)", fontSize: 13, flex: "0 0 auto" }}>
-        ×{item.count}
-      </span>
-      <span className="tnum" style={{ color: "var(--ink-faint)", fontSize: 12, flex: "0 0 auto", width: 44, textAlign: "right" }}>
-        {item.date}
-      </span>
-      <span style={{ flex: "0 0 auto" }}>
-        {item.done ? <Badge tone="success">直しずみ</Badge> : <Badge tone="danger">直す</Badge>}
-      </span>
-    </button>
+        <span className="tnum" style={{ color: "var(--ink-soft)", fontSize: 13, flex: "0 0 auto" }}>
+          ×{item.count}
+        </span>
+        <span className="tnum" style={{ color: "var(--ink-faint)", fontSize: 12, flex: "0 0 auto", width: 44, textAlign: "right" }}>
+          {item.date}
+        </span>
+      </button>
+      <Button
+        variant="ghost"
+        size="sm"
+        title={item.group === 1 ? "二群へ移動（直しずみにする）" : "一群に戻す"}
+        onClick={() => onMoveGroup(item.group === 1 ? 2 : 1)}
+      >
+        {pending ? "…" : <Icon name={item.group === 1 ? "arrow-down-circle" : "rotate-ccw"} size={16} />}
+      </Button>
+    </div>
   );
 }
 
-function MistakeDetail({ item, onClose }: { item: MistakeNote; onClose: () => void }) {
+function MistakeDetail({
+  item,
+  pending,
+  onClose,
+  onMoveGroup,
+}: {
+  item: MistakeNote;
+  pending: boolean;
+  onClose: () => void;
+  onMoveGroup: (group: 1 | 2) => void;
+}) {
   return (
     <Card style={{ position: "sticky", top: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
@@ -191,7 +273,14 @@ function MistakeDetail({ item, onClose }: { item: MistakeNote; onClose: () => vo
         <span className="tnum" style={{ fontFamily: "var(--font-body)", fontSize: 13, color: "var(--ink-faint)" }}>
           間違い {item.count} 回 · {item.date}
         </span>
-        {item.done ? <Badge tone="success">直しずみ</Badge> : <Badge tone="danger">直す</Badge>}
+        <Button
+          variant="outline"
+          size="sm"
+          iconLeft={<Icon name={item.group === 1 ? "arrow-down-circle" : "rotate-ccw"} size={14} />}
+          onClick={() => onMoveGroup(item.group === 1 ? 2 : 1)}
+        >
+          {pending ? "処理中…" : item.group === 1 ? "二群に移動する" : "一群に戻す"}
+        </Button>
       </div>
     </Card>
   );
