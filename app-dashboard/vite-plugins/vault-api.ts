@@ -2,7 +2,7 @@ import type { Plugin } from "vite";
 import type { IncomingMessage } from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { setMistakeGroup, createMaterialStub, createMistake } from "pipeline/write";
+import { setMistakeGroup, createMaterialStub, createMistake } from "../../pipeline/src/write";
 
 const VAULT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../vault");
 
