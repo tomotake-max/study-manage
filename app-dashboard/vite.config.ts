@@ -1,3 +1,4 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-export default defineConfig({ plugins: [react()] });
+import { vaultApiPlugin } from "./vite-plugins/vault-api";
+export default defineConfig({ plugins: [react(), vaultApiPlugin()] });
