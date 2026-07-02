@@ -6,7 +6,10 @@ export async function setMistakeGroupApi(id: string, group: 1 | 2): Promise<void
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ group }),
   });
-  if (!res.ok) throw new Error("振り分けの保存に失敗しました");
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.error ?? "振り分けの保存に失敗しました");
+  }
 }
 
 export async function createMaterialApi(subject: SubjectName, title: string): Promise<{ id: string }> {
@@ -15,7 +18,10 @@ export async function createMaterialApi(subject: SubjectName, title: string): Pr
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ subject, title }),
   });
-  if (!res.ok) throw new Error("テキストの登録に失敗しました");
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.error ?? "テキストの登録に失敗しました");
+  }
   return res.json();
 }
 
@@ -40,6 +46,9 @@ export async function createMistakeApi(payload: CreateMistakePayload): Promise<{
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) throw new Error("間違いの保存に失敗しました");
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.error ?? "間違いの保存に失敗しました");
+  }
   return res.json();
 }
