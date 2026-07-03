@@ -1,5 +1,7 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { DashboardData, MistakeCategory, SubjectName } from "shared";
+import { normalizeDigits } from "shared";
+import { createMaterialApi, createMistakeApi } from "../api";
 import { SectionTitle } from "../chrome/SectionTitle";
 import { Button } from "../ui/Button";
 import { Pill } from "../ui/Pill";
@@ -56,6 +58,70 @@ function getAccessToken(clientId: string): Promise<string> {
 
 const CATEGORIES: MistakeCategory[] = ["テキスト", "復習テスト", "公開テスト"];
 const SUBJECTS: SubjectName[] = ["算数", "国語", "理科", "社会"];
+
+const NEW_TEXT_VALUE = "__new__";
+
+function DictionaryPanel({ texts, onClose }: { texts: DashboardData["texts"]; onClose: () => void }) {
+  const bySubject = SUBJECTS.map((s) => ({
+    subject: s,
+    titles: Array.from(new Set(texts.filter((t) => t.subject === s).map((t) => t.title))),
+  })).filter((g) => g.titles.length > 0);
+
+  const copy = (text: string) => {
+    void navigator.clipboard.writeText(text);
+  };
+
+  return (
+    <div
+      style={{
+        position: "fixed", inset: 0, background: "rgba(44,42,38,0.35)",
+        display: "grid", placeItems: "center", zIndex: 50,
+      }}
+    >
+      <Card style={{ width: 480, maxHeight: "80vh", overflowY: "auto", padding: 28 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <h3 style={{ fontSize: "1.1rem" }}>辞書登録用テキスト一覧</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{ border: "none", background: "none", cursor: "pointer", color: "var(--ink-faint)" }}
+          >
+            <Icon name="x" size={18} />
+          </button>
+        </div>
+        <p style={{ fontFamily: "var(--font-body)", fontSize: 13, color: "var(--ink-soft)", marginBottom: 18 }}>
+          Aqua Voiceの辞書（Settings → Dictionary）に手動で登録すると、音声入力の誤認識が減ります。
+          コピーして貼り付けてください（Aqua Voice側の自動インポートには対応していません）。
+        </p>
+        {bySubject.map((g) => (
+          <div key={g.subject} style={{ marginBottom: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <span className="eyebrow">{g.subject}</span>
+              <Button variant="ghost" size="sm" onClick={() => copy(g.titles.join("\n"))}>
+                コピー
+              </Button>
+            </div>
+            <ul style={{ margin: 0, paddingLeft: 18, fontFamily: "var(--font-body)", fontSize: 13.5, color: "var(--ink)" }}>
+              {g.titles.map((t) => (
+                <li key={t}>{t}</li>
+              ))}
+            </ul>
+          </div>
+        ))}
+        {bySubject.length === 0 && (
+          <p style={{ fontFamily: "var(--font-body)", fontSize: 13, color: "var(--ink-faint)" }}>
+            登録されているテキストがありません。
+          </p>
+        )}
+        <div style={{ textAlign: "right", marginTop: 8 }}>
+          <Button variant="solid" size="sm" onClick={() => copy(bySubject.flatMap((g) => g.titles).join("\n"))}>
+            全てコピー
+          </Button>
+        </div>
+      </Card>
+    </div>
+  );
+}
 
 const fieldStyle: React.CSSProperties = {
   width: "100%",
@@ -362,7 +428,7 @@ function UploadSlot({ icon, label, hint, onFileSelected, concealAfterSelect }: U
   );
 }
 
-export function AddMistake(props: { data: DashboardData; onBack: () => void }) {
+export function AddMistake(props: { data: DashboardData; onBack: () => void; reload: () => void }) {
   const { reasons } = props.data;
   const [cat, setCat] = useState<MistakeCategory>(CATEGORIES[0]);
   const [subject, setSubject] = useState<SubjectName>(SUBJECTS[0]);
@@ -370,6 +436,12 @@ export function AddMistake(props: { data: DashboardData; onBack: () => void }) {
   const [unit, setUnit] = useState("");
   const [theme, setTheme] = useState("");
   const [source, setSource] = useState("");
+  const [textTitle, setTextTitle] = useState("");
+  const [newTextTitle, setNewTextTitle] = useState("");
+  const [page, setPageRaw] = useState("");
+  const setPage = (v: string) => setPageRaw(normalizeDigits(v));
+  const [showDictionary, setShowDictionary] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [question, setQuestion] = useState("");
   const [note, setNote] = useState("");
   const [saved, setSaved] = useState(false);
@@ -380,15 +452,36 @@ export function AddMistake(props: { data: DashboardData; onBack: () => void }) {
 
   const isText = cat === "テキスト";
 
-  function handleSave() {
-    // In Phase 1, files are stored in state but not actually persisted
-    // In Phase 2, these would be uploaded to a server or storage service
-    console.log("Saving mistake with photos:", {
-      photo1: photo1?.name,
-      photo2: photo2?.name,
-    });
-    setSaved(true);
-    setTimeout(() => props.onBack(), 700);
+  useEffect(() => {
+    setTextTitle("");
+    setNewTextTitle("");
+  }, [subject]);
+
+  const subjectTexts = Array.from(
+    new Set(props.data.texts.filter((t) => t.subject === subject).map((t) => t.title)),
+  );
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const finalTextTitle = textTitle === NEW_TEXT_VALUE ? newTextTitle.trim() : textTitle;
+      if (isText && textTitle === NEW_TEXT_VALUE && finalTextTitle) {
+        await createMaterialApi(subject, finalTextTitle);
+      }
+      const today = new Date();
+      const date = `${today.getMonth() + 1}/${today.getDate()}`;
+      await createMistakeApi({
+        subject, unit, theme, category: cat,
+        ...(isText ? { textTitle: finalTextTitle, page } : { source }),
+        reason, question, note, count: 1, date,
+      });
+      // 写真(photo1/photo2)は今回のスコープでは保存しない
+      setSaved(true);
+      props.reload();
+      setTimeout(() => props.onBack(), 700);
+    } finally {
+      setSaving(false);
+    }
   }
 
   const handlePhoto1Selected = (file: File, preview: string) => {
@@ -463,15 +556,64 @@ export function AddMistake(props: { data: DashboardData; onBack: () => void }) {
               placeholder={isText ? "追い越し" : "第18回 復習テスト"}
             />
           </Field>
-          <Field label={isText ? "出典 · ページ" : "日付"}>
-            <input
-              style={fieldStyle}
-              value={source}
-              onChange={(e) => setSource(e.target.value)}
-              placeholder={isText ? "速さテキスト p.32" : "6/21"}
-            />
-          </Field>
+          {isText ? (
+            <Field label="テキスト名">
+              <select style={fieldStyle} value={textTitle} onChange={(e) => setTextTitle(e.target.value)}>
+                <option value="" disabled>選択してください</option>
+                {subjectTexts.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+                <option value={NEW_TEXT_VALUE}>＋ 新しいテキストを追加</option>
+              </select>
+              {textTitle === NEW_TEXT_VALUE && (
+                <input
+                  style={{ ...fieldStyle, marginTop: 8 }}
+                  value={newTextTitle}
+                  onChange={(e) => setNewTextTitle(e.target.value)}
+                  placeholder="新しいテキスト名"
+                />
+              )}
+              <button
+                type="button"
+                onClick={() => setShowDictionary(true)}
+                style={{
+                  border: "none", background: "none", cursor: "pointer", color: "var(--ink-soft)",
+                  fontSize: 12, textDecoration: "underline", padding: "6px 0 0",
+                  display: "inline-flex", alignItems: "center", gap: 4,
+                }}
+              >
+                <Icon name="book-open-check" size={13} /> 辞書登録用一覧を見る
+              </button>
+            </Field>
+          ) : (
+            <Field label="日付">
+              <input
+                style={fieldStyle}
+                value={source}
+                onChange={(e) => setSource(e.target.value)}
+                placeholder="6/21"
+              />
+            </Field>
+          )}
         </div>
+
+        {isText && (
+          <div style={{ marginTop: 22, maxWidth: 200 }}>
+            <Field label="ページ数">
+              <input
+                style={fieldStyle}
+                value={page}
+                onChange={(e) => setPage(e.target.value)}
+                placeholder="32"
+                inputMode="numeric"
+              />
+            </Field>
+          </div>
+        )}
+
+        {showDictionary && (
+          <DictionaryPanel texts={props.data.texts} onClose={() => setShowDictionary(false)} />
+        )}
 
         <div style={{ marginTop: 22 }}>
           <Field label="問題のタイトル">
@@ -548,7 +690,7 @@ export function AddMistake(props: { data: DashboardData; onBack: () => void }) {
             キャンセル
           </Button>
           <Button variant="solid" iconLeft={<Icon name="check" size={16} />} onClick={handleSave}>
-            間違いを保存
+            {saving ? "保存中…" : "間違いを保存"}
           </Button>
         </div>
       </Card>
