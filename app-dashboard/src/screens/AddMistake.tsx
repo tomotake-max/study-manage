@@ -462,9 +462,14 @@ export function AddMistake(props: { data: DashboardData; onBack: () => void; rel
   );
 
   async function handleSave() {
+    if (saving) return;
+    const finalTextTitle = textTitle === NEW_TEXT_VALUE ? newTextTitle.trim() : textTitle;
+    if (isText && !finalTextTitle) {
+      alert("テキスト名を選択または入力してください");
+      return;
+    }
     setSaving(true);
     try {
-      const finalTextTitle = textTitle === NEW_TEXT_VALUE ? newTextTitle.trim() : textTitle;
       if (isText && textTitle === NEW_TEXT_VALUE && finalTextTitle) {
         await createMaterialApi(subject, finalTextTitle);
       }
@@ -479,6 +484,8 @@ export function AddMistake(props: { data: DashboardData; onBack: () => void; rel
       setSaved(true);
       props.reload();
       setTimeout(() => props.onBack(), 700);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "間違いの保存に失敗しました");
     } finally {
       setSaving(false);
     }
