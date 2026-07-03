@@ -35,6 +35,14 @@ pnpm watch:data          # vault を監視して data.json を自動再生成（
 開発フロー: `pnpm watch:data` と `pnpm dev` を両方立ち上げておくと、`vault/` の `.md` を
 編集・保存するたびに `data.json` が再生成され、ブラウザを再読込すると反映される。
 
+## 間違い直しの振り分け・追加機能について
+
+間違い直し画面の一群/二群振り分け、テキスト新規登録、間違いの新規追加は、ダッシュボードから
+直接 `vault/` にファイルを書き込む。この機能を使うには `pnpm dev` と `pnpm watch:data` の
+**両方**を起動しておく必要がある（`pnpm dev` の開発サーバーが書込APIを提供し、
+`pnpm watch:data` がvaultの変更を検知して`data.json`を再生成する）。書込APIは開発サーバー
+専用で、`pnpm build`後の静的サイトには存在しない。
+
 ## ノートの書き方（frontmatter）
 
 `vault/` 配下をフォルダで分け、frontmatter（YAML）に構造データ、本文にメモを置く。
