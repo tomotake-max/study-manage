@@ -34,6 +34,10 @@ export function App() {
 
   const reload = () => { loadData().then(setData); };
 
+  const updateData = (updater: (d: DashboardData) => DashboardData) => {
+    setData((prev) => (prev ? updater(prev) : prev));
+  };
+
   const go = (p: string, opts?: { subject?: string }) => {
     if (opts && opts.subject) setMatSubject(opts.subject);
     setPage(p as Page);
@@ -46,7 +50,7 @@ export function App() {
 
   let screen;
   if (page === "home") screen = <Dashboard data={data} />;
-  else if (page === "mistakes") screen = <Mistakes data={data} onAdd={() => go("add")} onDataChange={setData} reload={reload} />;
+  else if (page === "mistakes") screen = <Mistakes data={data} onAdd={() => go("add")} onDataChange={updateData} reload={reload} />;
   else if (page === "add") screen = <AddMistake data={data} onBack={() => go("mistakes")} reload={reload} />;
   else if (page === "materials") screen = <Materials data={data} subject={matSubject} />;
   else screen = <Calendar data={data} />;

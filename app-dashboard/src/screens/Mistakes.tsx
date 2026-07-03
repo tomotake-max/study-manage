@@ -29,6 +29,7 @@ export function Mistakes(props: {
   const selected = mistakes.find((m) => m.id === selectedId) ?? null;
 
   async function moveGroup(id: string, group: 1 | 2) {
+    if (pendingId === id) return;
     setPendingId(id);
     try {
       await setMistakeGroupApi(id, group);
@@ -38,6 +39,8 @@ export function Mistakes(props: {
       }));
       if (selectedId === id) setSelectedId(null);
       setTimeout(() => props.reload(), 800);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "振り分けの保存に失敗しました");
     } finally {
       setPendingId(null);
     }
