@@ -482,7 +482,7 @@ export function AddMistake(props: { data: DashboardData; onBack: () => void; rel
       });
       // 写真(photo1/photo2)は今回のスコープでは保存しない
       setSaved(true);
-      props.reload();
+      setTimeout(() => props.reload(), 800);
       setTimeout(() => props.onBack(), 700);
     } catch (e) {
       alert(e instanceof Error ? e.message : "間違いの保存に失敗しました");
