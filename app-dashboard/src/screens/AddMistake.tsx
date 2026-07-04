@@ -61,15 +61,6 @@ const SUBJECTS: SubjectName[] = ["算数", "国語", "理科", "社会"];
 
 const NEW_TEXT_VALUE = "__new__";
 
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
-}
-
 function DictionaryPanel({ texts, onClose }: { texts: DashboardData["texts"]; onClose: () => void }) {
   const bySubject = SUBJECTS.map((s) => ({
     subject: s,
@@ -484,8 +475,8 @@ export function AddMistake(props: { data: DashboardData; onBack: () => void; rel
       }
       const today = new Date();
       const date = `${today.getMonth() + 1}/${today.getDate()}`;
-      const questionPhotoDataUrl = photo1 ? await fileToDataUrl(photo1) : undefined;
-      const answerPhotoDataUrl = photo2 ? await fileToDataUrl(photo2) : undefined;
+      const questionPhotoDataUrl = photo1Preview ?? undefined;
+      const answerPhotoDataUrl = photo2Preview ?? undefined;
       await createMistakeApi({
         subject, unit, theme, category: cat,
         ...(isText ? { textTitle: finalTextTitle, page } : { source }),
