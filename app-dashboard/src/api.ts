@@ -38,6 +38,8 @@ export interface CreateMistakePayload {
   note: string;
   count: number;
   date: string;
+  questionPhotoDataUrl?: string;
+  answerPhotoDataUrl?: string;
 }
 
 export async function createMistakeApi(payload: CreateMistakePayload): Promise<{ id: string }> {
