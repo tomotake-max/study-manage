@@ -6,6 +6,11 @@
       "runtimeExecutable": "node",
       "runtimeArgs": ["app-dashboard/node_modules/vite/bin/vite.js", "--root", "app-dashboard", "--port", "5173", "--strictPort"],
       "port": 5173
+    },
+    {
+      "name": "watch-data",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "pipeline", "watch"]
     }
   ]
 }
