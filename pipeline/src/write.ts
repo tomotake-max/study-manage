@@ -71,6 +71,38 @@ export interface CreateMistakeInput {
   note: string;
   count: number;
   date: string;
+  questionPhotoDataUrl?: string;
+  answerPhotoDataUrl?: string;
+}
+
+function extensionForMimeType(mimeType: string): string {
+  if (mimeType === "image/png") return "png";
+  if (mimeType === "image/webp") return "webp";
+  if (mimeType === "image/gif") return "gif";
+  return "jpg";
+}
+
+function decodeDataUrl(dataUrl: string): { mimeType: string; buffer: Buffer } {
+  const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/s);
+  if (!match) {
+    throw new Error("invalid data URL");
+  }
+  return { mimeType: match[1], buffer: Buffer.from(match[2], "base64") };
+}
+
+async function savePhoto(
+  vaultDir: string,
+  id: string,
+  suffix: "question" | "answer",
+  dataUrl: string,
+): Promise<string> {
+  const { mimeType, buffer } = decodeDataUrl(dataUrl);
+  const ext = extensionForMimeType(mimeType);
+  const dir = path.join(vaultDir, "間違い", "attachments");
+  await mkdir(dir, { recursive: true });
+  const filename = `${id}-${suffix}.${ext}`;
+  await writeFile(path.join(dir, filename), buffer);
+  return filename;
 }
 
 export async function createMistake(
@@ -108,6 +140,13 @@ export async function createMistake(
     frontmatter.page = fields.page ?? "";
   } else {
     frontmatter.source = fields.source ?? "";
+  }
+
+  if (fields.questionPhotoDataUrl) {
+    frontmatter.question_photo = await savePhoto(vaultDir, id, "question", fields.questionPhotoDataUrl);
+  }
+  if (fields.answerPhotoDataUrl) {
+    frontmatter.answer_photo = await savePhoto(vaultDir, id, "answer", fields.answerPhotoDataUrl);
   }
 
   await writeFile(path.join(dir, `${id}.md`), matter.stringify(fields.note ?? "", frontmatter), "utf8");

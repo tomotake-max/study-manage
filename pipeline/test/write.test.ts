@@ -171,4 +171,52 @@ describe("createMistake", () => {
     });
     expect(id).not.toMatch(/[\\/:*?"<>|]/);
   });
+
+  it("questionPhotoDataUrl/answerPhotoDataUrlを渡すと添付ファイルとして保存しfrontmatterに記録する", async () => {
+    const TINY_PNG =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+    const { id } = await createMistake(vaultDir, {
+      subject: "算数", unit: "速さ", theme: "旅人算写真", category: "テキスト",
+      textTitle: "プラスワン問題集", page: "45",
+      reason: "計算ミス", question: "写真つきの問題", note: "",
+      count: 1, date: "7/3",
+      questionPhotoDataUrl: TINY_PNG,
+      answerPhotoDataUrl: TINY_PNG,
+    });
+
+    const raw = await readFile(path.join(vaultDir, "間違い", `${id}.md`), "utf8");
+    const parsed = matter(raw);
+    expect(parsed.data.question_photo).toBe(`${id}-question.png`);
+    expect(parsed.data.answer_photo).toBe(`${id}-answer.png`);
+
+    const questionBuf = await readFile(path.join(vaultDir, "間違い", "attachments", `${id}-question.png`));
+    expect(questionBuf.length).toBeGreaterThan(0);
+    const answerBuf = await readFile(path.join(vaultDir, "間違い", "attachments", `${id}-answer.png`));
+    expect(answerBuf.length).toBeGreaterThan(0);
+  });
+
+  it("写真を渡さない場合はattachmentsもfrontmatterのphotoフィールドも作らない", async () => {
+    const { id } = await createMistake(vaultDir, {
+      subject: "算数", unit: "速さ", theme: "旅人算写真なし", category: "テキスト",
+      textTitle: "プラスワン問題集", page: "10",
+      reason: "計算ミス", question: "写真なしの問題", note: "",
+      count: 1, date: "7/3",
+    });
+    const raw = await readFile(path.join(vaultDir, "間違い", `${id}.md`), "utf8");
+    const parsed = matter(raw);
+    expect(parsed.data.question_photo).toBeUndefined();
+    expect(parsed.data.answer_photo).toBeUndefined();
+  });
+
+  it("不正な形式のdata URLはエラーを投げる", async () => {
+    await expect(
+      createMistake(vaultDir, {
+        subject: "算数", unit: "速さ", theme: "不正データURL", category: "テキスト",
+        textTitle: "プラスワン問題集", page: "1",
+        reason: "計算ミス", question: "不正データURLの問題", note: "",
+        count: 1, date: "7/3",
+        questionPhotoDataUrl: "not-a-data-url",
+      }),
+    ).rejects.toThrow();
+  });
 });
