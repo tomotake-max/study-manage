@@ -51,10 +51,14 @@ export async function parseVault(vaultDir: string): Promise<ParsedVault> {
         const source = textTitle
           ? `${textTitle}${page ? ` p.${page}` : ""}`
           : (fm.source as string);
+        const questionPhotoFile = fm.question_photo as string | undefined;
+        const answerPhotoFile = fm.answer_photo as string | undefined;
         out.mistakes.push({
           id, subject: fm.subject as SubjectName, unit: fm.unit as string, theme: fm.theme as string,
           category: fm.category as MistakeNote["category"], source,
           textTitle, page,
+          questionPhoto: questionPhotoFile ? `/attachments/${questionPhotoFile}` : undefined,
+          answerPhoto: answerPhotoFile ? `/attachments/${answerPhotoFile}` : undefined,
           reason: fm.reason as string, question: fm.question as string,
           note: content, count: (fm.count as number) ?? 1,
           date: String(fm.date), group: (fm.group as 1 | 2) ?? 1,

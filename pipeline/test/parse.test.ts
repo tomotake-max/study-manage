@@ -45,4 +45,38 @@ describe("parseVault", () => {
       expect(m?.source).toBe("テスト教材 p.10");
     });
   });
+
+  describe("写真フィールドのパース", () => {
+    let vaultDir: string;
+
+    afterEach(async () => {
+      await rm(vaultDir, { recursive: true, force: true });
+    });
+
+    it("question_photo/answer_photoがあればURLパスとして読み込む", async () => {
+      vaultDir = await mkdtemp(path.join(tmpdir(), "studyboard-parse-photo-"));
+      const TINY_PNG =
+        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+      const { id } = await createMistake(vaultDir, {
+        subject: "算数", unit: "速さ", theme: "旅人算写真", category: "テキスト",
+        textTitle: "プラスワン問題集", page: "45",
+        reason: "計算ミス", question: "写真つきの問題", note: "",
+        count: 1, date: "7/3",
+        questionPhotoDataUrl: TINY_PNG,
+        answerPhotoDataUrl: TINY_PNG,
+      });
+
+      const r = await parseVault(vaultDir);
+      const m = r.mistakes.find((x) => x.id === id);
+      expect(m?.questionPhoto).toBe(`/attachments/${id}-question.png`);
+      expect(m?.answerPhoto).toBe(`/attachments/${id}-answer.png`);
+    });
+
+    it("写真が無ければquestionPhoto/answerPhotoはundefined", async () => {
+      const r = await parseVault(VAULT);
+      const m = r.mistakes.find((x) => x.id === "2026-06-24-速さ-追い越し");
+      expect(m?.questionPhoto).toBeUndefined();
+      expect(m?.answerPhoto).toBeUndefined();
+    });
+  });
 });
