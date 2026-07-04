@@ -76,10 +76,11 @@ export interface CreateMistakeInput {
 }
 
 function extensionForMimeType(mimeType: string): string {
+  if (mimeType === "image/jpeg") return "jpg";
   if (mimeType === "image/png") return "png";
   if (mimeType === "image/webp") return "webp";
   if (mimeType === "image/gif") return "gif";
-  return "jpg";
+  throw new Error(`unsupported image type: ${mimeType}`);
 }
 
 function decodeDataUrl(dataUrl: string): { mimeType: string; buffer: Buffer } {
@@ -96,8 +97,15 @@ async function savePhoto(
   suffix: "question" | "answer",
   dataUrl: string,
 ): Promise<string> {
-  const { mimeType, buffer } = decodeDataUrl(dataUrl);
-  const ext = extensionForMimeType(mimeType);
+  let mimeType: string;
+  let buffer: Buffer;
+  let ext: string;
+  try {
+    ({ mimeType, buffer } = decodeDataUrl(dataUrl));
+    ext = extensionForMimeType(mimeType);
+  } catch (e) {
+    throw new Error(`invalid ${suffix} photo: ${(e as Error).message}`);
+  }
   const dir = path.join(vaultDir, "間違い", "attachments");
   await mkdir(dir, { recursive: true });
   const filename = `${id}-${suffix}.${ext}`;

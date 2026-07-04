@@ -219,4 +219,16 @@ describe("createMistake", () => {
       }),
     ).rejects.toThrow();
   });
+
+  it("未対応のMIMEタイプのdata URLはどの写真枠かを含むエラーを投げる", async () => {
+    await expect(
+      createMistake(vaultDir, {
+        subject: "算数", unit: "速さ", theme: "未対応MIMEタイプ", category: "テキスト",
+        textTitle: "プラスワン問題集", page: "1",
+        reason: "計算ミス", question: "未対応MIMEタイプの問題", note: "",
+        count: 1, date: "7/3",
+        questionPhotoDataUrl: "data:image/bmp;base64,AAAA",
+      }),
+    ).rejects.toThrow(/unsupported image type: image\/bmp.*question|question.*unsupported image type: image\/bmp/s);
+  });
 });
