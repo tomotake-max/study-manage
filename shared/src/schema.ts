@@ -50,6 +50,8 @@ export interface MistakeNote {
   count: number;
   date: string;
   group: 1 | 2;                      // 1=一群（要復習・ストック中）, 2=二群（直しずみ・ストック外）
+  questionPhoto?: string;            // 表示用URLパス（例: "/attachments/xxx-question.jpg"）。未アップロード時は未設定
+  answerPhoto?: string;              // 同上（答案・解答用紙側）
 }
 
 // ── 日々の報告ノート ─────────────────────
