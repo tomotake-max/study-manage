@@ -1,6 +1,7 @@
 node_modules/
 dist/
 app-dashboard/public/data.json
+app-dashboard/public/attachments/
 *.log
 .DS_Store
 .env.local

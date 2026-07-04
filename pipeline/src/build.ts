@@ -1,4 +1,4 @@
-import { writeFile, mkdir } from "node:fs/promises";
+import { writeFile, mkdir, cp } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseVault } from "./parse.js";
@@ -11,6 +11,16 @@ import {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const VAULT = path.join(ROOT, "vault");
 const OUT = path.join(ROOT, "app-dashboard/public/data.json");
+const ATTACHMENTS_SRC = path.join(VAULT, "間違い", "attachments");
+const ATTACHMENTS_OUT = path.join(ROOT, "app-dashboard/public/attachments");
+
+async function copyAttachments(): Promise<void> {
+  try {
+    await cp(ATTACHMENTS_SRC, ATTACHMENTS_OUT, { recursive: true });
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+  }
+}
 
 export async function build(): Promise<DashboardData> {
   const v = await parseVault(VAULT);
@@ -57,6 +67,7 @@ export async function build(): Promise<DashboardData> {
   };
 
   await mkdir(path.dirname(OUT), { recursive: true });
+  await copyAttachments();
   await writeFile(OUT, JSON.stringify(data, null, 2), "utf8");
   return data;
 }
