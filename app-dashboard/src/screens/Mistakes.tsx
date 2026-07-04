@@ -100,11 +100,91 @@ export function Mistakes(props: {
 
       {selected && (
         <MistakeDetail
+          key={selected.id}
           item={selected}
           pending={selected.id === pendingId}
           onClose={() => setSelectedId(null)}
           onMoveGroup={(g) => moveGroup(selected.id, g)}
         />
+      )}
+    </div>
+  );
+}
+
+function ConcealedPhoto({ src, alt }: { src: string; alt: string }) {
+  const [revealed, setRevealed] = useState(false);
+  return (
+    <div
+      style={{
+        position: "relative",
+        borderRadius: "var(--radius-md)",
+        overflow: "hidden",
+        border: "1px solid var(--line)",
+        marginBottom: 12,
+      }}
+    >
+      <img
+        src={src}
+        alt={alt}
+        style={{
+          width: "100%",
+          height: "auto",
+          maxHeight: 240,
+          objectFit: "cover",
+          display: "block",
+          filter: revealed ? "none" : "blur(18px)",
+          transform: revealed ? "none" : "scale(1.1)",
+          transition: "filter var(--dur-fast) var(--ease-organic)",
+        }}
+      />
+      {!revealed && (
+        <button
+          type="button"
+          onClick={() => setRevealed(true)}
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            border: "none",
+            background: "rgba(44,42,38,0.35)",
+            color: "#fff",
+            cursor: "pointer",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 6,
+            fontFamily: "var(--font-body)",
+          }}
+        >
+          <Icon name="eye" size={22} />
+          <span style={{ fontSize: 13 }}>クリックして表示</span>
+        </button>
+      )}
+      {revealed && (
+        <button
+          type="button"
+          onClick={() => setRevealed(false)}
+          title="もう一度隠す"
+          style={{
+            position: "absolute",
+            top: 6,
+            right: 6,
+            border: "none",
+            borderRadius: "var(--radius-pill)",
+            background: "rgba(44,42,38,0.55)",
+            color: "#fff",
+            cursor: "pointer",
+            padding: "4px 8px",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
+            fontSize: 11,
+            fontFamily: "var(--font-body)",
+          }}
+        >
+          <Icon name="eye-off" size={12} /> 隠す
+        </button>
       )}
     </div>
   );
@@ -233,22 +313,62 @@ function MistakeDetail({
         {item.theme && <Badge tone="neutral">{item.theme}</Badge>}
       </div>
 
-      <div
-        style={{
-          border: "1px dashed var(--line-strong)",
-          borderRadius: "var(--radius-md)",
-          background: "var(--surface-sunken)",
-          height: 132,
-          display: "grid",
-          placeItems: "center",
-          color: "var(--ink-faint)",
-          marginBottom: 18,
-        }}
-      >
-        <div style={{ textAlign: "center", fontFamily: "var(--font-body)", fontSize: 13 }}>
-          <Icon name="image" size={22} />
-          <div style={{ marginTop: 6 }}>問題の写真</div>
-        </div>
+      <div style={{ marginBottom: 18 }}>
+        {item.questionPhoto ? (
+          <img
+            src={item.questionPhoto}
+            alt="問題の写真"
+            style={{
+              width: "100%",
+              height: "auto",
+              maxHeight: 240,
+              objectFit: "cover",
+              display: "block",
+              borderRadius: "var(--radius-md)",
+              border: "1px solid var(--line)",
+              marginBottom: 12,
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              border: "1px dashed var(--line-strong)",
+              borderRadius: "var(--radius-md)",
+              background: "var(--surface-sunken)",
+              height: 132,
+              display: "grid",
+              placeItems: "center",
+              color: "var(--ink-faint)",
+              marginBottom: 12,
+            }}
+          >
+            <div style={{ textAlign: "center", fontFamily: "var(--font-body)", fontSize: 13 }}>
+              <Icon name="image" size={22} />
+              <div style={{ marginTop: 6 }}>問題の写真</div>
+            </div>
+          </div>
+        )}
+
+        {item.answerPhoto ? (
+          <ConcealedPhoto src={item.answerPhoto} alt="答案・解答用紙" />
+        ) : (
+          <div
+            style={{
+              border: "1px dashed var(--line-strong)",
+              borderRadius: "var(--radius-md)",
+              background: "var(--surface-sunken)",
+              height: 132,
+              display: "grid",
+              placeItems: "center",
+              color: "var(--ink-faint)",
+            }}
+          >
+            <div style={{ textAlign: "center", fontFamily: "var(--font-body)", fontSize: 13 }}>
+              <Icon name="file-text" size={22} />
+              <div style={{ marginTop: 6 }}>答案・解答用紙</div>
+            </div>
+          </div>
+        )}
       </div>
 
       <div style={{ marginTop: 16 }}>
