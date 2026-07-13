@@ -11,6 +11,11 @@ import { Icon } from "../ui/Icon";
 
 const SUBJECTS: SubjectName[] = ["算数", "国語", "理科", "社会"];
 
+function getDisplayTitle(item: MistakeNote): string {
+  if (item.category === "テキスト") return item.question;
+  return [item.theme, item.source, item.subject, item.question].filter(Boolean).join("・");
+}
+
 export function Mistakes(props: {
   data: DashboardData;
   onAdd: () => void;
@@ -244,7 +249,7 @@ function MistakeRow({
         />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ color: "var(--ink)", fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {item.question}
+            {getDisplayTitle(item)}
           </div>
           <div style={{ color: "var(--ink-faint)", fontSize: 12, marginTop: 2 }}>{item.source}</div>
         </div>
@@ -291,7 +296,7 @@ function MistakeDetail({
         </button>
       </div>
 
-      <h3 style={{ fontSize: "1.2rem", lineHeight: 1.35, marginBottom: 10 }}>{item.question}</h3>
+      <h3 style={{ fontSize: "1.2rem", lineHeight: 1.35, marginBottom: 10 }}>{getDisplayTitle(item)}</h3>
       <div
         style={{
           display: "flex",
