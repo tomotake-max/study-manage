@@ -251,7 +251,9 @@ function MistakeRow({
           <div style={{ color: "var(--ink)", fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {getDisplayTitle(item)}
           </div>
-          <div style={{ color: "var(--ink-faint)", fontSize: 12, marginTop: 2 }}>{item.source}</div>
+          {item.category === "テキスト" && (
+            <div style={{ color: "var(--ink-faint)", fontSize: 12, marginTop: 2 }}>{item.source}</div>
+          )}
         </div>
         <span className="tnum" style={{ color: "var(--ink-soft)", fontSize: 13, flex: "0 0 auto" }}>
           ×{item.count}
@@ -309,7 +311,7 @@ function MistakeDetail({
         }}
       >
         <span style={{ width: 9, height: 9, borderRadius: "50%", background: SUBJECT_COLORS[item.subject] }} />
-        {item.subject} · {item.source}
+        {item.category === "テキスト" ? `${item.subject} · ${item.source}` : item.subject}
       </div>
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 18 }}>
